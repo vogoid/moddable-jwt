@@ -1,0 +1,7 @@
+{
+  "modules": {
+    "jwt": "./src/main",
+    "*": ["./src/generate", "./src/verify"]
+  },
+  "preload": ["jwt"]
+}
