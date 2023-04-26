@@ -1,4 +1,4 @@
 export default class {
-	static generate(message, private) @ "xs_jwt_generate";
-    static verify(token, public) @ "xs_jwt_verify";
+	static generate(message, privatekey) @ "xs_jwt_generate";
+    static verify(token, publickey) @ "xs_jwt_verify";
 }
