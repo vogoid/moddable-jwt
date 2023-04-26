@@ -9,7 +9,6 @@ void xs_jwt_verify(xsMachine *the)
 {
     mbedtls_pk_context pkey;
     uint8_t *jwt = (uint8_t *)xsmcToString(xsArg(0));
-    size_t jwt_length = strlen((const char *)jwt);
     uint8_t *key;
     size_t key_length;
     int ret = 0;
@@ -22,27 +21,17 @@ void xs_jwt_verify(xsMachine *the)
     memcpy(pem_key, key, key_length);
     pem_key[key_length] = 0;
     ret = mbedtls_pk_parse_public_key(&pkey, pem_key, key_length + 1);
+    free(pem_key);
     if (ret != 0)
     {
-        modLog("Error: mbedtls_pk_parse_public_key returned");
-        modLogInt(ret);
-        free(pem_key);
         xsResult = xsFalse;
         return;
     }
-    free(pem_key);
 
     const char *header_end = strchr(jwt, '.');
-    if (!header_end)
-    {
-        printf("Invalid JWT: Missing header.\n");
-        xsResult = xsFalse;
-        return;
-    }
     const char *payload_end = strchr(header_end + 1, '.');
-    if (!payload_end)
+    if (!header_end || !payload_end)
     {
-        printf("Invalid JWT: Missing payload.\n");
         xsResult = xsFalse;
         return;
     }
@@ -63,18 +52,13 @@ void xs_jwt_verify(xsMachine *the)
     unsigned char *urlsafe_base64 = (unsigned char *)malloc(signature_len + 4); // Allocate extra space for padding
     memcpy(urlsafe_base64, payload_end + 1, signature_len);
 
-    size_t i;
     // Replace URL-safe characters '-' -> '+' and '_' -> '/' and add padding
-    for (i = 0; i < signature_len; i++)
+    for (size_t i = 0; i < signature_len; i++)
     {
         if (urlsafe_base64[i] == '-')
-        {
             urlsafe_base64[i] = '+';
-        }
         else if (urlsafe_base64[i] == '_')
-        {
             urlsafe_base64[i] = '/';
-        }
     }
     size_t padding = (4 - (signature_len % 4)) % 4;
     for (i = 0; i < padding; i++)
@@ -85,13 +69,8 @@ void xs_jwt_verify(xsMachine *the)
     size_t decoded_signature_len;
     unsigned char signature[MBEDTLS_MPI_MAX_SIZE];
     ret = mbedtls_base64_decode(signature, MBEDTLS_MPI_MAX_SIZE, &decoded_signature_len, urlsafe_base64, signature_len + padding);
+    free(urlsafe_base64);
 
     // Verify the signature
-    ret = mbedtls_pk_verify(&pkey, MBEDTLS_MD_SHA256, hash, 0, signature, decoded_signature_len);
-    if (ret != 0)
-    {
-        xsResult = xsFalse;
-        return;
-    }
-    xsResult = xsTrue;
+    xsResult = (mbedtls_pk_verify(&pkey, MBEDTLS_MD_SHA256, hash, 0, signature, decoded_signature_len) == 0) ? xsTrue : xsFalse;
 }
