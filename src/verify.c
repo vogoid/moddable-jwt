@@ -8,14 +8,12 @@
 void xs_jwt_verify(xsMachine *the)
 {
     mbedtls_pk_context pkey;
-    uint8_t *jwt;
-    size_t jwt_length;
+    uint8_t *jwt = (uint8_t *)xsmcToString(xsArg(0));
+    size_t jwt_length = strlen((const char *)jwt);
     uint8_t *key;
     size_t key_length;
     int ret = 0;
 
-    jwt = (uint8_t *)xsmcToString(xsArg(0));
-    jwt_length = strlen((const char *)jwt);
     xsmcGetBufferReadable(xsArg(1), (void **)&key, &key_length);
 
     mbedtls_pk_init(&pkey);
@@ -53,9 +51,7 @@ void xs_jwt_verify(xsMachine *the)
     size_t payload_len = payload_end - (header_end + 1);
     size_t signature_len = strlen(payload_end + 1);
 
-    // TODO: Extract the signing algorithm from the header
-    // For simplicity, we assume SHA-256 is used in this example
-    // Compute the hash of the message
+    // Compute the hash of the message, we assume SHA-256
     unsigned char hash[32];
     char message[header_len + 1 + payload_len];
     memcpy(message, jwt, header_len);
@@ -64,22 +60,25 @@ void xs_jwt_verify(xsMachine *the)
     mbedtls_sha256((unsigned char *)message, header_len + 1 + payload_len, hash, 0);
 
     // Base64Url decode the signature
-    unsigned char *urlsafe_base64 = (unsigned char *) malloc(signature_len + 4); // Allocate extra space for padding
+    unsigned char *urlsafe_base64 = (unsigned char *)malloc(signature_len + 4); // Allocate extra space for padding
     memcpy(urlsafe_base64, payload_end + 1, signature_len);
 
     size_t i;
-    // Replace URL-safe characters '-' -> '+' and '_' -> '/'
-    for (i = 0; i < signature_len; i++) {
-        if (urlsafe_base64[i] == '-') {
+    // Replace URL-safe characters '-' -> '+' and '_' -> '/' and add padding
+    for (i = 0; i < signature_len; i++)
+    {
+        if (urlsafe_base64[i] == '-')
+        {
             urlsafe_base64[i] = '+';
-        } else if (urlsafe_base64[i] == '_') {
+        }
+        else if (urlsafe_base64[i] == '_')
+        {
             urlsafe_base64[i] = '/';
         }
     }
-
-    // Add required padding '='
     size_t padding = (4 - (signature_len % 4)) % 4;
-    for (i = 0; i < padding; i++) {
+    for (i = 0; i < padding; i++)
+    {
         urlsafe_base64[signature_len + i] = '=';
     }
 
@@ -91,18 +90,8 @@ void xs_jwt_verify(xsMachine *the)
     ret = mbedtls_pk_verify(&pkey, MBEDTLS_MD_SHA256, hash, 0, signature, decoded_signature_len);
     if (ret != 0)
     {
-        char error_buf[100];
-        mbedtls_strerror(ret, error_buf, sizeof(error_buf));
-        modLog("Verification failed with error");
-        modLogInt(ret);
-
         xsResult = xsFalse;
         return;
     }
-    else
-    {
-        printf("Verification succeeded.\n");
-        xsResult = xsTrue;
-        return;
-    }
+    xsResult = xsTrue;
 }
